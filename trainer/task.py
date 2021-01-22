@@ -10,6 +10,7 @@ from tensorflow.keras import activations
 from tensorflow.keras import optimizers
 from tensorflow.keras import losses
 from tensorflow.keras import metrics
+from tensorflow.keras import utils
 
 
 def _download_data():
@@ -19,12 +20,21 @@ def _download_data():
     return x_train, y_train, x_test, y_test
 
 
+def _preprocess_data(x, y):
+    x = x / 255.0
+    y = utils.to_categorical(y)
+    return x, y
+
+
+
 def train_and_evaluate(batch_size, epochs, job_dir, output_path):
     
     # Download the data
     x_train, y_train, x_test, y_test =_download_data()
 
     # Preprocess the data
+    x_train, y_train = _preprocess_data(x, y)
+    x_test, y_test = _preprocess_data(x, y)
 
     # Build the model
 
