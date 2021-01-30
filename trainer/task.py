@@ -5,6 +5,8 @@ import logging.config
 import os
 import time
 
+import tensorflow as tf
+
 from tensorflow.keras import datasets
 from tensorflow.keras import models
 from tensorflow.keras import layers
@@ -76,6 +78,15 @@ def train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune):
     # Evaluate the model
     loss_value, accuracy = model.evaluate(x_test, y_test)
     LOGGER.info("  *** LOSS VALUE:  %f     ACCURACY: %.4f" % (loss_value, accuracy))
+
+    # Communicate the results of the evaluation of the model
+    if is_hypertune:
+        metric_tag = 'accuracy_live_class'
+        eval_path = os.path.join(job_dir, metric_tag)
+        writer = tf.summary.create_file_writer(eval_path)
+        with writer.as_default():
+            tf.summary.scalar(metric_tag, accuracy, step=epochs)
+        writer.flush()
 
     # Save model in TF SavedModel Format
     if not is_hypertune:
