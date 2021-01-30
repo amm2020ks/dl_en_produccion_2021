@@ -32,36 +32,51 @@ def _download_data():
     return x_train, y_train, x_test, y_test
 
 
-def _preprocess_data(x, y):
+def _preprocess_data(x, y, is_convolutional):
     LOGGER.info("Transforming data")
+    if is_convolutional == 1:
+        x.reshape(-1, 28, 28,1)
     x = x / 255.0
     y = utils.to_categorical(y)
     return x,y
 
 
-def _build_model():
-    m = models.Sequential()
+def _build_model(is_convolutional):
+    if is_convolutional == 0:
+        m = models.Sequential()
 
-    m.add(layers.Input((28,28), name='my_input_layer'))
-    m.add(layers.Flatten())
-    m.add(layers.Dense(128, activation=activations.relu))
-    m.add(layers.Dense(64, activation=activations.relu))
-    m.add(layers.Dense(32, activation=activations.relu))
-    m.add(layers.Dense(10, activation=activations.softmax))
+        m.add(layers.Input((28,28), name='my_input_layer'))
+        m.add(layers.Flatten())
+        m.add(layers.Dense(128, activation=activations.relu))
+        m.add(layers.Dense(64, activation=activations.relu))
+        m.add(layers.Dense(32, activation=activations.relu))
+        m.add(layers.Dense(10, activation=activations.softmax))
+    elif is_convolutional == 1:
+        m = models.Sequential()
+
+        m.add(layers.Input((28, 28, 1), name='my_input_layer'))
+        m.add(layers.Conv2D(32, (3, 3), activation=activations.relu))
+        m.add(layers.MaxPooling2D((2, 2)))
+        m.add(layers.Conv2D(16, (3, 3), activation=activations.relu))
+        m.add(layers.MaxPooling2D((2, 2)))
+        m.add(layers.Conv2D(8, (3, 3), activation=activations.relu))
+        m.add(layers.MaxPooling2D((2, 2)))
+        m.add(layers.Flatten())
+        m.add(layers.Dense(10, activation=activations.softmax))
 
     return m
 
 
-def train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune):
+def train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune, is_convolutional):
     # Download the data
     x_train, y_train, x_test, y_test = _download_data()
 
     # Preprocess the data
-    x_train, y_train = _preprocess_data(x_train, y_train)
-    x_test, y_test = _preprocess_data(x_test, y_test)
+    x_train, y_train = _preprocess_data(x_train, y_train, is_convolutional)
+    x_test, y_test = _preprocess_data(x_test, y_test, is_convolutional)
 
     # Build the model
-    model = _build_model()
+    model = _build_model(is_convolutional)
     model.compile(loss=losses.categorical_crossentropy,
                   optimizer=optimizers.Adam(),
                   metrics=[metrics.categorical_accuracy])
@@ -101,6 +116,7 @@ def main():
     parser.add_argument('--epochs', type=int, help='Number of epochs for the training')
     parser.add_argument('--job-dir', default=None, required=False, help='Option for AI Platform')
     parser.add_argument('--model-output-path', help='Path to write the SaveModel format')
+    parser.add_argument('--convolutional', type=int, help='0 if not conv and 1 if conv')
 
     args = parser.parse_args()
 
@@ -109,8 +125,9 @@ def main():
     epochs = args.epochs
     job_dir = args.job_dir
     output_path = args.model_output_path
+    is_convolutional = args.convolutional
 
-    train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune)
+    train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune, is_convolutional)
 
 if __name__ == "__main__":
     main()
