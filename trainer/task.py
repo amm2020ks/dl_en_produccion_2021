@@ -4,6 +4,7 @@ import argparse
 import logging.config
 import os
 import time
+import sys
 
 import tensorflow as tf
 
@@ -32,62 +33,79 @@ def _download_data():
     return x_train, y_train, x_test, y_test
 
 
-def _preprocess_data(x, y, is_convolutional):
+def _preprocess_data(x, y, needs_reshape):
     LOGGER.info("Transforming data")
-    if is_convolutional == 1:
-        x.reshape(-1, 28, 28,1)
     x = x / 255.0
+    if needs_reshape:
+        x = x.reshape(-1, 28, 28, 1)
     y = utils.to_categorical(y)
     return x,y
 
 
-def _build_model(is_convolutional):
-    if is_convolutional == 0:
-        m = models.Sequential()
+def _build_model_dense():
+    m = models.Sequential()
 
-        m.add(layers.Input((28,28), name='my_input_layer'))
-        m.add(layers.Flatten())
-        m.add(layers.Dense(128, activation=activations.relu))
-        m.add(layers.Dense(64, activation=activations.relu))
-        m.add(layers.Dense(32, activation=activations.relu))
-        m.add(layers.Dense(10, activation=activations.softmax))
-    elif is_convolutional == 1:
-        m = models.Sequential()
-
-        m.add(layers.Input((28, 28, 1), name='my_input_layer'))
-        m.add(layers.Conv2D(32, (3, 3), activation=activations.relu))
-        m.add(layers.MaxPooling2D((2, 2)))
-        m.add(layers.Conv2D(16, (3, 3), activation=activations.relu))
-        m.add(layers.MaxPooling2D((2, 2)))
-        m.add(layers.Conv2D(8, (3, 3), activation=activations.relu))
-        m.add(layers.MaxPooling2D((2, 2)))
-        m.add(layers.Flatten())
-        m.add(layers.Dense(10, activation=activations.softmax))
+    m.add(layers.Input((28,28), name='my_input_layer'))
+    m.add(layers.Flatten())
+    m.add(layers.Dense(128, activation=activations.relu))
+    m.add(layers.Dense(64, activation=activations.relu))
+    m.add(layers.Dense(32, activation=activations.relu))
+    m.add(layers.Dense(10, activation=activations.softmax))
 
     return m
 
 
-def train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune, is_convolutional):
+def _build_model_cnn():
+    m = models.Sequential()
+
+    m.add(layers.Input((28, 28, 1), name='my_input_layer'))
+    m.add(layers.Conv2D(32, (3, 3), activation=activations.relu))
+    m.add(layers.MaxPooling2D((2, 2)))
+    m.add(layers.Conv2D(16, (3, 3), activation=activations.relu))
+    m.add(layers.MaxPooling2D((2, 2)))
+    m.add(layers.Conv2D(8, (3, 3), activation=activations.relu))
+    m.add(layers.MaxPooling2D((2, 2)))
+    m.add(layers.Flatten())
+    m.add(layers.Dense(10, activation=activations.softmax))
+
+    return m
+
+
+def train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune, model_type):
+    
     # Download the data
     x_train, y_train, x_test, y_test = _download_data()
 
-    # Preprocess the data
-    x_train, y_train = _preprocess_data(x_train, y_train, is_convolutional)
-    x_test, y_test = _preprocess_data(x_test, y_test, is_convolutional)
-
+    needs_reshape = False
     # Build the model
-    model = _build_model(is_convolutional)
+    if model_type == 'dense':
+        model = _build_model_dense()
+        needs_reshape = False
+    elif model_type == 'cnn':
+        model = _build_model_cnn()
+        needs_reshape = True
+    else:
+        LOGGER.error("Unknown model type %s" % model_type)
+        sys.exit(1)
+
+
+    # Preprocess the data
+    x_train, y_train = _preprocess_data(x_train, y_train, needs_reshape)
+    x_test, y_test = _preprocess_data(x_test, y_test, needs_reshape)
+
     model.compile(loss=losses.categorical_crossentropy,
                   optimizer=optimizers.Adam(),
                   metrics=[metrics.categorical_accuracy])
 
     # Train the model
-    logdir = os.path.join(job_dir, "logs/scalars" + time.strftime("%Y%m%d-%H%M%S"))
+    # Use tensorboard in the Cloud Shell without slash at the end
+    # e.g. tensorboard --logdir gs://BUCKET/tmp/logs  <-- no slash
+    logdir = os.path.join(job_dir, "logs/scalars/" + time.strftime("%Y%m%d-%H%M%S"))
     tb_callback = callbacks.TensorBoard(log_dir=logdir)
-    model.fit(x_train,
-              y_train,
-              epochs=epochs,
-              batch_size=batch_size,
+    model.fit(x_train, 
+              y_train, 
+              epochs=epochs, 
+              batch_size=batch_size, 
               callbacks=[tb_callback])
 
     # Evaluate the model
@@ -115,9 +133,8 @@ def main():
     parser.add_argument('--batch-size', type=int, help='Batch size for the training')
     parser.add_argument('--epochs', type=int, help='Number of epochs for the training')
     parser.add_argument('--job-dir', default=None, required=False, help='Option for AI Platform')
-    parser.add_argument('--model-output-path', help='Path to write the SaveModel format')
-    parser.add_argument('--convolutional', default=0,type=int, help='0 if not conv and 1 if conv')
-    #parser.add_argument('--convolutional', default=0,type=int, help='0 if not conv and 1 if conv')
+    parser.add_argument('--model-output-path', help='Path to write the SaveModel format', default=None)
+    parser.add_argument('--model-type', help='Type of model to train', default='dense')
 
     args = parser.parse_args()
 
@@ -126,9 +143,17 @@ def main():
     epochs = args.epochs
     job_dir = args.job_dir
     output_path = args.model_output_path
-    is_convolutional = args.convolutional
+    model_type = args.model_type
 
-    train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune, is_convolutional)
+    if not model_type in ['dense', 'cnn']:
+        print('Model type must be dense or cnn')
+        sys.exit(1)
+
+    if (not is_hypertune) and output_path is None:
+        print('Please set --model-output-path')
+        sys.exit(1)
+
+    train_and_evaluate(batch_size, epochs, job_dir, output_path, is_hypertune, model_type)
 
 if __name__ == "__main__":
     main()

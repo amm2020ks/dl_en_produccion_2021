@@ -1,5 +1,6 @@
 #!/bin/sh
 
+BUCKET=amm-20200123-kschool
 
 gcloud ai-platform jobs submit training mnist_amm_ht_`date +"%s"` \
   --python-version 3.7 \
@@ -8,9 +9,7 @@ gcloud ai-platform jobs submit training mnist_amm_ht_`date +"%s"` \
   --package-path ./trainer \
   --module-name trainer.task \
   --region europe-west1 \
-  --job-dir gs://amm-20200123-kschool/tmp \
+  --job-dir gs://$BUCKET/tmp \
   --config ./bin/hyper.yaml \
   -- \
-  --model-output-path gs://amm-20200123-kschool/models \
   --hypertune
-  --convolutional

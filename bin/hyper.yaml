@@ -2,7 +2,7 @@ trainingInput:
   hyperparameters:
     goal: MAXIMIZE
     hyperparameterMetricTag: accuracy_live_class
-    maxTrials: 10
+    maxTrials: 5
     maxParallelTrials: 5
     enableTrialEarlyStopping: True
     params:
@@ -18,8 +18,8 @@ trainingInput:
       - 1024
       - 2048
       - 4096
-    - parameterName: convolutional
-      type: DISCRETE
-      discreteValues:
-      - 0
-      - 1
+    - parameterName: model-type
+      type: CATEGORICAL
+      categoricalValues:
+      - dense
+      - cnn
