@@ -116,7 +116,8 @@ def main():
     parser.add_argument('--epochs', type=int, help='Number of epochs for the training')
     parser.add_argument('--job-dir', default=None, required=False, help='Option for AI Platform')
     parser.add_argument('--model-output-path', help='Path to write the SaveModel format')
-    parser.add_argument('--convolutional', type=int, help='0 if not conv and 1 if conv')
+    parser.add_argument('--convolutional', default=0,type=int, help='0 if not conv and 1 if conv')
+    #parser.add_argument('--convolutional', default=0,type=int, help='0 if not conv and 1 if conv')
 
     args = parser.parse_args()
 
